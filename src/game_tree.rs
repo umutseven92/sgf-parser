@@ -23,7 +23,7 @@ impl GameTree {
         let mut content = String::new();
         let mut skip_counter = 0;
 
-        let mut counting_node = false;
+        let _counting_node = false;
 
         for (index, character) in source.chars().enumerate() {
             let index = index + 1;

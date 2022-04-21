@@ -1,4 +1,4 @@
-use std::str::FromStr;
+
 
 // When numbering nodes starting with zero is suggested.
 // Nodes should be numbered in the way they are stored in the file.
@@ -25,8 +25,8 @@ impl Node {
         for (index, character) in source.chars().enumerate() {
             let index = index + 1;
 
-            let mut prop_id_buffer = String::new();
-            let mut prop_val_buffer = String::new();
+            let _prop_id_buffer = String::new();
+            let _prop_val_buffer = String::new();
 
             if skip_counter > 0 {
                 skip_counter -= 1;
@@ -57,7 +57,7 @@ impl Node {
 
 #[cfg(test)]
 mod tests {
-    use crate::node::Node;
+    
 
     // #[test]
     // fn can_parse_node_single_property() {

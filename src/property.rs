@@ -15,9 +15,9 @@
 // Each property has a property type. Property types place restrictions on certain properties,
 // e.g. in which nodes they are allowed and with which properties they may be combined.
 
-use std::string::ToString;
-use std::{collections::HashMap, error::Error, fmt::Debug};
-use strum_macros::{Display, EnumString};
+
+use std::{fmt::Debug};
+
 
 const PROP_VAL_START: char = '[';
 const PROP_VAL_END: char = ']';

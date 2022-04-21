@@ -1,4 +1,4 @@
-use crate::game_tree::{self, GameTree};
+use crate::game_tree::{GameTree};
 
 const TREE_START: char = '(';
 const TREE_END: char = ')';
