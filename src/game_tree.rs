@@ -2,9 +2,7 @@ use crate::node::Node;
 
 const TREE_START: char = '(';
 const TREE_END: char = ')';
-const PROP_START: char = ';';
-const PROP_VAL_START: char = '[';
-const PROP_VAL_END: char = ']';
+const NODE_START: char = ';';
 
 pub struct GameTree {
     // Called `leaves` instead of `nodes` since `Node` has a specific meaning in SFG files.
@@ -14,15 +12,18 @@ pub struct GameTree {
 }
 
 impl GameTree {
-    fn new(source: &str) -> Result<GameTree, &str> {
+    fn new(source: &str) -> Result<Self, &str> {
         Ok(GameTree::parse(source)?.0)
     }
 
-    pub fn parse(source: &str) -> Result<(GameTree, usize), &str> {
+    pub fn parse(source: &str) -> Result<(Self, usize), &str> {
         let mut leaves: Vec<GameTree> = vec![];
+        let mut sequence: Vec<Node> = vec![];
 
         let mut content = String::new();
         let mut skip_counter = 0;
+
+        let mut counting_node = false;
 
         for (index, character) in source.chars().enumerate() {
             let index = index + 1;
@@ -46,14 +47,21 @@ impl GameTree {
                 TREE_END => {
                     return Ok((
                         GameTree {
-                            leaves: leaves,
+                            leaves,
                             content: String::from(content.trim()),
                             sequence: vec![],
                         },
                         index,
                     ));
                 }
-                PROP_START => {}
+                NODE_START => {
+                    // We encountered a Node.
+                    let remaining_content = source.split_at(index);
+                    let node_result = Node::parse(remaining_content.1)?;
+
+                    sequence.push(node_result.0);
+                    skip_counter = node_result.1;
+                }
                 // White space (space, tab, carriage return, line feed, vertical tab and so on) may appear
                 // anywhere between PropValues, Properties, Nodes, Sequences and GameTrees.
                 ' ' | '\n' | '\t' => (),
@@ -65,11 +73,11 @@ impl GameTree {
 
         return Ok((
             GameTree {
-                leaves: leaves,
+                leaves,
                 content: String::from(content.trim()),
                 sequence: vec![],
             },
-            source.len()
+            source.len(),
         ));
     }
 }

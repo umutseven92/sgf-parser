@@ -15,9 +15,13 @@
 // Each property has a property type. Property types place restrictions on certain properties,
 // e.g. in which nodes they are allowed and with which properties they may be combined.
 
+use std::string::ToString;
 use std::{collections::HashMap, error::Error, fmt::Debug};
+use strum_macros::{Display, EnumString};
 
-#[derive(PartialEq, Debug)]
+const PROP_VAL_START: char = '[';
+const PROP_VAL_END: char = ']';
+
 enum PropertyType {
     Move,
     Setup,
@@ -25,10 +29,11 @@ enum PropertyType {
     GameInfo,
 }
 
+#[derive(Debug)]
 enum PropertyValue {
     None,
     // Number with a range.
-    Number(u32),
+    Number(u32, u32, u32),
     Real(String),
     // Double values are used for annotation properties.
     // They are called Double because the value is either simple or emphasized.
@@ -63,49 +68,101 @@ enum PropertyValue {
     Point,
     Move,
     Stone,
+    Compose(Box<PropertyValue>, Box<PropertyValue>),
 }
 
-pub struct Property {
-    id: PropertyID,
-    value: PropertyValue,
-    prop_type: PropertyType,
-}
+impl PartialEq for PropertyValue {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            PropertyValue::Number(a, b, c) => {
+                if let PropertyValue::Number(x, y, z) = other {
+                    return a == x && b == y && c == z;
+                };
 
-impl Property {
-    fn validate_range(min: u32, max: u32, val: u32) -> Result<(), String> {
-        if val < min || val > max {
-            return Err(format!(
-                "Value {val} is not in range (between {min} and {max})"
-            ));
-        }
-
-        Ok(())
-    }
-
-    fn new(id: PropertyID) -> Result<Self, String> {
-        match id {
-            PropertyID::FF(val) => {
-                Self::validate_range(1, 4, val)?;
-                Ok(Self {
-                    id,
-                    value: PropertyValue::Number(val),
-                    prop_type: PropertyType::Root,
-                })
+                todo!()
             }
             _ => todo!(),
         }
     }
 }
 
+pub struct Property {
+    id: String,
+    values: Vec<PropertyValue>,
+}
+
+impl Property {
+    pub fn parse(source: &str) -> Result<(Self, usize), &str> {
+        let mut parse_mode = PropParseMode::ID;
+        let mut skip_counter = 0;
+        let mut prop_id = String::new();
+        let mut values = vec![];
+        let mut prop_id_buffer = String::new();
+        let mut prop_val_buffer = String::new();
+
+        for character in source.chars() {
+            if skip_counter > 0 {
+                skip_counter -= 1;
+                continue;
+            }
+
+            match character {
+                PROP_VAL_START => {
+                    // Property values are starting.
+                    // Properties have only one ID, so we are done with the prop_id_buffer.
+                    parse_mode = PropParseMode::Value;
+                    prop_id = prop_id_buffer.clone();
+                }
+                PROP_VAL_END => {
+                    let val = prop_val_buffer.as_str();
+                    let prop_val = Property::get_prop_val(prop_id.as_str(), val)?;
+
+                    values.push(prop_val);
+                    prop_val_buffer.clear();
+                }
+                // White space (space, tab, carriage return, line feed, vertical tab and so on) may appear
+                // anywhere between PropValues, Properties, Nodes, Sequences and GameTrees.
+                ' ' | '\n' | '\t' => (),
+                other => {
+                    match parse_mode {
+                        PropParseMode::ID => prop_id_buffer.push(other),
+                        PropParseMode::Value => prop_val_buffer.push(other),
+                    };
+                }
+            }
+        }
+
+        return Ok((
+            Property {
+                id: prop_id,
+                values,
+            },
+            source.len(),
+        ));
+    }
+
+    fn get_prop_val(id: &str, val: &str) -> Result<PropertyValue, &'static str> {
+        let prop_val = match id {
+            "FF" => {
+                let converted: u32 = val.parse().unwrap(); // TODO
+                PropertyValue::Number(converted, 1, 4)
+            }
+            _ => todo!(),
+        };
+
+        Ok(prop_val)
+    }
+}
+
+enum PropParseMode {
+    ID,
+    Value,
+}
+
 // Property-identifiers are defined as keywords using only uppercase letters.
 // Currently there are no more than two uppercase letters per identifier.
 
-#[derive(PartialEq, Debug)]
-enum PropertyID {
-    FF(u32),
-    GM(u32),
-}
-
+#[derive(Debug)]
 enum Color {
     White,
     Black,
@@ -113,30 +170,35 @@ enum Color {
 
 #[cfg(test)]
 mod tests {
-    use crate::property::{PropertyID, PropertyType};
-
-    use super::Property;
+    use crate::property::{Property, PropertyValue};
 
     #[test]
-    fn can_validate_range() {
-        // Should not error (in range).
-        let prop = Property::new(PropertyID::FF(4)).unwrap();
+    fn can_parse_property() {
+        let content = "FF[4]";
+        let property = Property::parse(content).unwrap().0;
 
-        assert_eq!(prop.id, PropertyID::FF(4));
-        assert_eq!(prop.prop_type, PropertyType::Root);
+        assert_eq!(property.id, "FF");
 
-        let prop = Property::new(PropertyID::FF(1)).unwrap();
+        assert_eq!(property.values.len(), 1);
 
-        assert_eq!(prop.id, PropertyID::FF(1));
+        let val = property.values.get(0).unwrap();
+        assert_eq!(*val, PropertyValue::Number(4, 1, 4))
+    }
 
-        // Should error (out of range).
-        let prop = Property::new(PropertyID::FF(6));
+    #[test]
+    fn can_parse_property_multiple_value() {
+        let content = "FF[0][1][2][3]";
+        let property = Property::parse(content).unwrap().0;
 
-        assert!(prop.is_err());
+        assert_eq!(property.id, "FF");
 
-        // Should error (out of range).
-        let prop = Property::new(PropertyID::FF(0));
+        assert_eq!(property.values.len(), 4);
 
-        assert!(prop.is_err());
+        for i in 0..4 {
+            assert_eq!(
+                *property.values.get(i).unwrap(),
+                PropertyValue::Number(i as u32, 1, 4)
+            )
+        }
     }
 }
