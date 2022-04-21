@@ -1,4 +1,5 @@
 mod collection;
+mod errors;
 mod game_tree;
 mod node;
 mod property;

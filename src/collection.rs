@@ -1,4 +1,5 @@
-use crate::game_tree::{GameTree};
+use crate::errors::SgfParseError;
+use crate::game_tree::GameTree;
 
 const TREE_START: char = '(';
 const TREE_END: char = ')';
@@ -8,11 +9,11 @@ pub struct Collection {
 }
 
 impl Collection {
-    pub fn new(source: &str) -> Result<Self, &str> {
+    pub fn new(source: &str) -> Result<Self, SgfParseError> {
         Ok(Self::parse(source)?)
     }
 
-    fn parse(source: &str) -> Result<Self, &str> {
+    fn parse(source: &str) -> Result<Self, SgfParseError> {
         let mut skip_counter = 0;
         let mut game_trees: Vec<GameTree> = vec![];
 

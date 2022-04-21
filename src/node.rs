@@ -1,5 +1,4 @@
-
-
+use crate::errors::SgfParseError;
 // When numbering nodes starting with zero is suggested.
 // Nodes should be numbered in the way they are stored in the file.
 // Example (of file above): root=0, a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8, i=9 and j=10.
@@ -13,11 +12,7 @@ pub struct Node {
 }
 
 impl Node {
-    fn new(source: &str) -> Result<Self, &str> {
-        Ok(Node::parse(source)?.0)
-    }
-
-    pub fn parse(source: &str) -> Result<(Self, usize), &str> {
+    pub fn parse(source: &str) -> Result<(Self, usize), SgfParseError> {
         let mut properties: Vec<Property> = vec![];
 
         let mut skip_counter = 0;
@@ -38,44 +33,61 @@ impl Node {
                 // anywhere between PropValues, Properties, Nodes, Sequences and GameTrees.
                 ' ' | '\n' | '\t' => (),
                 _ => {
-                    let remaining_content = source.split_at(index);
+                    let remaining_content = source.split_at(index - 1);
 
-                    match Property::parse(remaining_content.1) {
-                        Ok(prop_result) => {
-                            properties.push(prop_result.0);
-                            skip_counter = prop_result.1;
-                        }
-                        Err(_) => break,
-                    }
+                    let prop_result = Property::parse(remaining_content.1)?;
+                    properties.push(prop_result.0);
+                    skip_counter = prop_result.1;
                 }
             }
         }
 
-        todo!()
+        Ok((Node { properties }, source.len()))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    
+    use crate::node::Node;
+    use crate::property::PropertyValue;
 
-    // #[test]
-    // fn can_parse_node_single_property() {
-    //     let content = "FF[4]";
-    //     let node = Node::parse(content).unwrap().0;
-    //
-    //     assert_eq!(node.properties.len(), 1);
-    //
-    //     let prop = node.properties.get(0).unwrap();
-    //
-    //     assert_eq!(prop.id, "FF");
-    // }
-    //
-    // #[test]
-    // fn can_parse_node_multiple_property() {
-    //     let content = "AB[dd][de]N[Markup]";
-    //     let node = Node::parse(content).unwrap().0;
-    //
-    //     assert_eq!(node.properties.len(), 2);
-    // }
+    #[test]
+    fn can_parse_node_single_property() {
+        let content = "FF[4]";
+        let node = Node::parse(content).unwrap().0;
+
+        assert_eq!(node.properties.len(), 1);
+
+        let prop = node.properties.get(0).unwrap();
+
+        assert_eq!(prop.id, "FF");
+    }
+
+    #[test]
+    fn can_parse_node_multiple_property() {
+        let content = "FF[1][2]FF[3]";
+        let node = Node::parse(content).unwrap().0;
+
+        assert_eq!(node.properties.len(), 2);
+
+        let first_prop = node.properties.get(0).unwrap();
+        let second_prop = node.properties.get(1).unwrap();
+
+        assert_eq!(first_prop.id, "FF");
+        assert_eq!(
+            *first_prop.values.get(0).unwrap(),
+            PropertyValue::Number(1, 1, 4)
+        );
+
+        assert_eq!(
+            *first_prop.values.get(1).unwrap(),
+            PropertyValue::Number(2, 1, 4)
+        );
+
+        assert_eq!(second_prop.id, "FF");
+        assert_eq!(
+            *second_prop.values.get(0).unwrap(),
+            PropertyValue::Number(3, 1, 4)
+        );
+    }
 }

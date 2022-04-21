@@ -1,3 +1,4 @@
+use crate::errors::SgfParseError;
 use crate::node::Node;
 
 const TREE_START: char = '(';
@@ -7,20 +8,14 @@ const NODE_START: char = ';';
 pub struct GameTree {
     // Called `leaves` instead of `nodes` since `Node` has a specific meaning in SFG files.
     leaves: Vec<GameTree>,
-    pub content: String,
     sequence: Vec<Node>,
 }
 
 impl GameTree {
-    fn new(source: &str) -> Result<Self, &str> {
-        Ok(GameTree::parse(source)?.0)
-    }
-
-    pub fn parse(source: &str) -> Result<(Self, usize), &str> {
+    pub fn parse(source: &str) -> Result<(Self, usize), SgfParseError> {
         let mut leaves: Vec<GameTree> = vec![];
         let mut sequence: Vec<Node> = vec![];
 
-        let mut content = String::new();
         let mut skip_counter = 0;
 
         let _counting_node = false;
@@ -48,7 +43,6 @@ impl GameTree {
                     return Ok((
                         GameTree {
                             leaves,
-                            content: String::from(content.trim()),
                             sequence: vec![],
                         },
                         index,
@@ -66,7 +60,7 @@ impl GameTree {
                 // anywhere between PropValues, Properties, Nodes, Sequences and GameTrees.
                 ' ' | '\n' | '\t' => (),
                 _ => {
-                    content.push(character);
+                    todo!()
                 }
             }
         }
@@ -74,7 +68,6 @@ impl GameTree {
         return Ok((
             GameTree {
                 leaves,
-                content: String::from(content.trim()),
                 sequence: vec![],
             },
             source.len(),
@@ -86,79 +79,79 @@ impl GameTree {
 mod tests {
     use super::GameTree;
 
-    #[test]
-    fn can_parse_single_game_tree() {
-        let content = "tree";
-        let tree = GameTree::new(content).unwrap();
+    // #[test]
+    // fn can_parse_single_game_tree() {
+    //     let content = "tree";
+    //     let tree = GameTree::parse(content).unwrap().0;
+    //
+    //     assert_eq!(tree.content, "tree");
+    //     assert_eq!(tree.leaves.len(), 0);
+    // }
 
-        assert_eq!(tree.content, "tree");
-        assert_eq!(tree.leaves.len(), 0);
-    }
-
-    #[test]
-    fn can_parse_nested_game_tree() {
-        let content = "ab (def)";
-        let tree = GameTree::new(content).unwrap();
-
-        assert_eq!(tree.content, "ab");
-        assert_eq!(tree.leaves.len(), 1);
-
-        let nested = tree.leaves.get(0).unwrap();
-
-        assert_eq!(nested.content, "def");
-        assert_eq!(nested.leaves.len(), 0);
-    }
-
-    #[test]
-    fn can_parse_consecutive_nested_game_tree() {
-        let content = "ab (def) (ghi)";
-        let tree = GameTree::new(content).unwrap();
-
-        assert_eq!(tree.content, "ab");
-        assert_eq!(tree.leaves.len(), 2);
-
-        let first_nested = tree.leaves.get(0).unwrap();
-
-        assert_eq!(first_nested.content, "def");
-        assert_eq!(first_nested.leaves.len(), 0);
-
-        let second_nested = tree.leaves.get(1).unwrap();
-
-        assert_eq!(second_nested.content, "ghi");
-        assert_eq!(second_nested.leaves.len(), 0);
-    }
-
-    #[test]
-    fn can_parse_complex_nested_game_tree() {
-        let content = "ab (def (ghi)) (jkl(mno(pqr)))";
-        let tree = GameTree::new(content).unwrap();
-
-        assert_eq!(tree.content, "ab");
-        assert_eq!(tree.leaves.len(), 2);
-
-        let nested = tree.leaves.get(0).unwrap();
-
-        assert_eq!(nested.content, "def");
-        assert_eq!(nested.leaves.len(), 1);
-
-        let nested = nested.leaves.get(0).unwrap();
-
-        assert_eq!(nested.content, "ghi");
-        assert_eq!(nested.leaves.len(), 0);
-
-        let nested = tree.leaves.get(1).unwrap();
-
-        assert_eq!(nested.content, "jkl");
-        assert_eq!(nested.leaves.len(), 1);
-
-        let nested = nested.leaves.get(0).unwrap();
-
-        assert_eq!(nested.content, "mno");
-        assert_eq!(nested.leaves.len(), 1);
-
-        let nested = nested.leaves.get(0).unwrap();
-
-        assert_eq!(nested.content, "pqr");
-        assert_eq!(nested.leaves.len(), 0);
-    }
+    // #[test]
+    // fn can_parse_nested_game_tree() {
+    //     let content = "ab (def)";
+    //     let tree = GameTree::parse(content).unwrap().0;
+    //
+    //     assert_eq!(tree.content, "ab");
+    //     assert_eq!(tree.leaves.len(), 1);
+    //
+    //     let nested = tree.leaves.get(0).unwrap();
+    //
+    //     assert_eq!(nested.content, "def");
+    //     assert_eq!(nested.leaves.len(), 0);
+    // }
+    //
+    // #[test]
+    // fn can_parse_consecutive_nested_game_tree() {
+    //     let content = "ab (def) (ghi)";
+    //     let tree = GameTree::parse(content).unwrap().0;
+    //
+    //     assert_eq!(tree.content, "ab");
+    //     assert_eq!(tree.leaves.len(), 2);
+    //
+    //     let first_nested = tree.leaves.get(0).unwrap();
+    //
+    //     assert_eq!(first_nested.content, "def");
+    //     assert_eq!(first_nested.leaves.len(), 0);
+    //
+    //     let second_nested = tree.leaves.get(1).unwrap();
+    //
+    //     assert_eq!(second_nested.content, "ghi");
+    //     assert_eq!(second_nested.leaves.len(), 0);
+    // }
+    //
+    // #[test]
+    // fn can_parse_complex_nested_game_tree() {
+    //     let content = "ab (def (ghi)) (jkl(mno(pqr)))";
+    //     let tree = GameTree::parse(content).unwrap().0;
+    //
+    //     assert_eq!(tree.content, "ab");
+    //     assert_eq!(tree.leaves.len(), 2);
+    //
+    //     let nested = tree.leaves.get(0).unwrap();
+    //
+    //     assert_eq!(nested.content, "def");
+    //     assert_eq!(nested.leaves.len(), 1);
+    //
+    //     let nested = nested.leaves.get(0).unwrap();
+    //
+    //     assert_eq!(nested.content, "ghi");
+    //     assert_eq!(nested.leaves.len(), 0);
+    //
+    //     let nested = tree.leaves.get(1).unwrap();
+    //
+    //     assert_eq!(nested.content, "jkl");
+    //     assert_eq!(nested.leaves.len(), 1);
+    //
+    //     let nested = nested.leaves.get(0).unwrap();
+    //
+    //     assert_eq!(nested.content, "mno");
+    //     assert_eq!(nested.leaves.len(), 1);
+    //
+    //     let nested = nested.leaves.get(0).unwrap();
+    //
+    //     assert_eq!(nested.content, "pqr");
+    //     assert_eq!(nested.leaves.len(), 0);
+    // }
 }

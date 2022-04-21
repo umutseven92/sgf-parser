@@ -15,9 +15,9 @@
 // Each property has a property type. Property types place restrictions on certain properties,
 // e.g. in which nodes they are allowed and with which properties they may be combined.
 
-
-use std::{fmt::Debug};
-
+use crate::errors::SgfParseError;
+use std::error::Error;
+use std::fmt::Debug;
 
 const PROP_VAL_START: char = '[';
 const PROP_VAL_END: char = ']';
@@ -30,7 +30,7 @@ enum PropertyType {
 }
 
 #[derive(Debug)]
-enum PropertyValue {
+pub enum PropertyValue {
     None,
     // Number with a range.
     Number(u32, u32, u32),
@@ -71,6 +71,33 @@ enum PropertyValue {
     Compose(Box<PropertyValue>, Box<PropertyValue>),
 }
 
+impl PropertyValue {
+    fn validate(&self) -> Result<(), SgfParseError> {
+        match self {
+            PropertyValue::None => Ok(()),
+            PropertyValue::Number(val, min, max) => {
+                if val < min || val > max {
+                    Err(SgfParseError::new(format!(
+                        "Value {} not in range (min {}, max {})",
+                        val, min, max
+                    )))
+                } else {
+                    Ok(())
+                }
+            }
+            PropertyValue::Real(val) => Ok(()),
+            PropertyValue::Double(val) => Ok(()),
+            PropertyValue::Color(val) => Ok(()),
+            PropertyValue::SimpleText(val) => Ok(()),
+            PropertyValue::Text(val) => Ok(()),
+            PropertyValue::Point => Ok(()),
+            PropertyValue::Move => Ok(()),
+            PropertyValue::Stone => Ok(()),
+            PropertyValue::Compose(val_1, val_2) => Ok(()),
+        }
+    }
+}
+
 impl PartialEq for PropertyValue {
     fn eq(&self, other: &Self) -> bool {
         match self {
@@ -87,24 +114,20 @@ impl PartialEq for PropertyValue {
 }
 
 pub struct Property {
-    id: String,
-    values: Vec<PropertyValue>,
+    pub id: String,
+    pub values: Vec<PropertyValue>,
 }
 
 impl Property {
-    pub fn parse(source: &str) -> Result<(Self, usize), &str> {
+    pub fn parse(source: &str) -> Result<(Self, usize), SgfParseError> {
         let mut parse_mode = PropParseMode::ID;
-        let mut skip_counter = 0;
         let mut prop_id = String::new();
         let mut values = vec![];
         let mut prop_id_buffer = String::new();
         let mut prop_val_buffer = String::new();
 
-        for character in source.chars() {
-            if skip_counter > 0 {
-                skip_counter -= 1;
-                continue;
-            }
+        for (index, character) in source.chars().enumerate() {
+            let index = index + 1;
 
             match character {
                 PROP_VAL_START => {
@@ -116,7 +139,7 @@ impl Property {
                 PROP_VAL_END => {
                     let val = prop_val_buffer.as_str();
                     let prop_val = Property::get_prop_val(prop_id.as_str(), val)?;
-
+                    prop_val.validate()?;
                     values.push(prop_val);
                     prop_val_buffer.clear();
                 }
@@ -124,6 +147,15 @@ impl Property {
                 // anywhere between PropValues, Properties, Nodes, Sequences and GameTrees.
                 ' ' | '\n' | '\t' => (),
                 other => {
+                    if index >= 2 && source.chars().nth(index - 2).unwrap() == PROP_VAL_END {
+                        return Ok((
+                            Property {
+                                id: prop_id,
+                                values,
+                            },
+                            index - 2,
+                        ));
+                    }
                     match parse_mode {
                         PropParseMode::ID => prop_id_buffer.push(other),
                         PropParseMode::Value => prop_val_buffer.push(other),
@@ -141,10 +173,13 @@ impl Property {
         ));
     }
 
-    fn get_prop_val(id: &str, val: &str) -> Result<PropertyValue, &'static str> {
+    fn get_prop_val(id: &str, val: &str) -> Result<PropertyValue, SgfParseError> {
         let prop_val = match id {
             "FF" => {
-                let converted: u32 = val.parse().unwrap(); // TODO
+                let converted = match val.parse::<u32>() {
+                    Ok(x) => x,
+                    Err(err) => Err(SgfParseError::new(err.to_string()))?,
+                };
                 PropertyValue::Number(converted, 1, 4)
             }
             _ => todo!(),
@@ -171,6 +206,7 @@ enum Color {
 #[cfg(test)]
 mod tests {
     use crate::property::{Property, PropertyValue};
+    use test_case::test_case;
 
     #[test]
     fn can_parse_property() {
@@ -185,9 +221,20 @@ mod tests {
         assert_eq!(*val, PropertyValue::Number(4, 1, 4))
     }
 
+    #[test_case("0" ; "Below min")]
+    #[test_case("5" ; "Above max")]
+    #[test_case("abcde" ; "Non-number")]
+    fn ff_property_validation(val: &str) {
+        let content = format!("FF[{}]", val);
+
+        let property = Property::parse(content.as_str());
+
+        assert!(property.is_err());
+    }
+
     #[test]
     fn can_parse_property_multiple_value() {
-        let content = "FF[0][1][2][3]";
+        let content = "FF[1][2][3][4]";
         let property = Property::parse(content).unwrap().0;
 
         assert_eq!(property.id, "FF");
@@ -197,7 +244,7 @@ mod tests {
         for i in 0..4 {
             assert_eq!(
                 *property.values.get(i).unwrap(),
-                PropertyValue::Number(i as u32, 1, 4)
+                PropertyValue::Number((i + 1) as u32, 1, 4)
             )
         }
     }
