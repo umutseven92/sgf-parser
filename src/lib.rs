@@ -1,3 +1,6 @@
+extern crate core;
+
+mod chars;
 mod collection;
 mod errors;
 mod game_tree;

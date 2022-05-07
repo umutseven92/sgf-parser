@@ -15,12 +15,10 @@
 // Each property has a property type. Property types place restrictions on certain properties,
 // e.g. in which nodes they are allowed and with which properties they may be combined.
 
+use crate::chars;
 use crate::errors::SgfParseError;
 use std::error::Error;
 use std::fmt::Debug;
-
-const PROP_VAL_START: char = '[';
-const PROP_VAL_END: char = ']';
 
 enum PropertyType {
     Move,
@@ -130,24 +128,33 @@ impl Property {
             let index = index + 1;
 
             match character {
-                PROP_VAL_START => {
+                chars::PROP_VAL_START => {
                     // Property values are starting.
                     // Properties have only one ID, so we are done with the prop_id_buffer.
                     parse_mode = PropParseMode::Value;
                     prop_id = prop_id_buffer.clone();
                 }
-                PROP_VAL_END => {
+                chars::PROP_VAL_END => {
                     let val = prop_val_buffer.as_str();
                     let prop_val = Property::get_prop_val(prop_id.as_str(), val)?;
-                    prop_val.validate()?;
                     values.push(prop_val);
                     prop_val_buffer.clear();
+                }
+                chars::TREE_START => {
+                    // We have encountered a new new tree; this means the current Property is finished.
+                    return Ok((
+                        Property {
+                            id: prop_id,
+                            values,
+                        },
+                        index - 2,
+                    ));
                 }
                 // White space (space, tab, carriage return, line feed, vertical tab and so on) may appear
                 // anywhere between PropValues, Properties, Nodes, Sequences and GameTrees.
                 ' ' | '\n' | '\t' => (),
                 other => {
-                    if index >= 2 && source.chars().nth(index - 2).unwrap() == PROP_VAL_END {
+                    if index >= 2 && source.chars().nth(index - 2).unwrap() == chars::PROP_VAL_END {
                         return Ok((
                             Property {
                                 id: prop_id,
@@ -182,9 +189,28 @@ impl Property {
                 };
                 PropertyValue::Number(converted, 1, 4)
             }
+            "AP" => {
+                let split: Vec<&str> = val.split(':').collect();
+
+                if split.len() < 2 {
+                    Err(SgfParseError::new(String::from(
+                        "Invalid composite value for AP.",
+                    )))?
+                }
+
+                PropertyValue::Compose(
+                    Box::new(PropertyValue::SimpleText(String::from(
+                        *split.get(0).unwrap(),
+                    ))),
+                    Box::new(PropertyValue::SimpleText(String::from(
+                        *split.get(1).unwrap(),
+                    ))),
+                )
+            }
             _ => todo!(),
         };
 
+        prop_val.validate()?;
         Ok(prop_val)
     }
 }
@@ -230,6 +256,30 @@ mod tests {
         let property = Property::parse(content.as_str());
 
         assert!(property.is_err());
+    }
+
+    #[test]
+    fn ap_property_validation() {
+        let content = "AP[Primiview:3.1]";
+
+        let property = Property::parse(content).unwrap().0;
+
+        assert_eq!(property.id, "AP");
+
+        assert_eq!(property.values.len(), 1);
+
+        if let PropertyValue::Compose(x, y) = property.values.get(0).unwrap() {
+            if let PropertyValue::SimpleText(val) = &**x {
+                assert_eq!(val, "Primiview");
+                return;
+            }
+            if let PropertyValue::SimpleText(val) = &**y {
+                assert_eq!(val, "3.1");
+                return;
+            }
+        }
+
+        panic!();
     }
 
     #[test]

@@ -1,9 +1,6 @@
+use crate::chars;
 use crate::errors::SgfParseError;
 use crate::node::Node;
-
-const TREE_START: char = '(';
-const TREE_END: char = ')';
-const NODE_START: char = ';';
 
 pub struct GameTree {
     // Called `leaves` instead of `nodes` since `Node` has a specific meaning in SFG files.
@@ -28,7 +25,7 @@ impl GameTree {
             }
 
             match character {
-                TREE_START => {
+                chars::TREE_START => {
                     // We encountered a nested GameTree.
                     let remaining_content = source.split_at(index);
                     match GameTree::parse(remaining_content.1) {
@@ -39,16 +36,10 @@ impl GameTree {
                         Err(_) => break,
                     }
                 }
-                TREE_END => {
-                    return Ok((
-                        GameTree {
-                            leaves,
-                            sequence: vec![],
-                        },
-                        index,
-                    ));
+                chars::TREE_END => {
+                    return Ok((GameTree { leaves, sequence }, index));
                 }
-                NODE_START => {
+                chars::NODE_START => {
                     // We encountered a Node.
                     let remaining_content = source.split_at(index);
                     let node_result = Node::parse(remaining_content.1)?;
@@ -65,13 +56,7 @@ impl GameTree {
             }
         }
 
-        return Ok((
-            GameTree {
-                leaves,
-                sequence: vec![],
-            },
-            source.len(),
-        ));
+        return Ok((GameTree { leaves, sequence }, source.len()));
     }
 }
 
@@ -79,28 +64,29 @@ impl GameTree {
 mod tests {
     use super::GameTree;
 
-    // #[test]
-    // fn can_parse_single_game_tree() {
-    //     let content = "tree";
-    //     let tree = GameTree::parse(content).unwrap().0;
-    //
-    //     assert_eq!(tree.content, "tree");
-    //     assert_eq!(tree.leaves.len(), 0);
-    // }
+    #[test]
+    fn can_parse_single_game_tree() {
+        let content = ";FF[4]";
+        let tree = GameTree::parse(content).unwrap().0;
 
-    // #[test]
-    // fn can_parse_nested_game_tree() {
-    //     let content = "ab (def)";
-    //     let tree = GameTree::parse(content).unwrap().0;
-    //
-    //     assert_eq!(tree.content, "ab");
-    //     assert_eq!(tree.leaves.len(), 1);
-    //
-    //     let nested = tree.leaves.get(0).unwrap();
-    //
-    //     assert_eq!(nested.content, "def");
-    //     assert_eq!(nested.leaves.len(), 0);
-    // }
+        let node = tree.sequence.get(0).unwrap();
+        assert_eq!(node.properties.len(), 1);
+
+        let prop = node.properties.get(0).unwrap();
+        assert_eq!(prop.id, "FF");
+    }
+
+    #[test]
+    fn can_parse_nested_game_tree() {
+        let content = ";FF[4] (;AP[windows:95])";
+        let tree = GameTree::parse(content).unwrap().0;
+
+        assert_eq!(tree.leaves.len(), 1);
+
+        let nested = tree.leaves.get(0).unwrap();
+
+        assert_eq!(nested.leaves.len(), 0);
+    }
     //
     // #[test]
     // fn can_parse_consecutive_nested_game_tree() {

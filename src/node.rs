@@ -1,3 +1,4 @@
+use crate::chars;
 use crate::errors::SgfParseError;
 // When numbering nodes starting with zero is suggested.
 // Nodes should be numbered in the way they are stored in the file.
@@ -8,7 +9,7 @@ use crate::errors::SgfParseError;
 use crate::property::Property;
 
 pub struct Node {
-    properties: Vec<Property>,
+    pub properties: Vec<Property>,
 }
 
 impl Node {
@@ -32,6 +33,10 @@ impl Node {
                 // White space (space, tab, carriage return, line feed, vertical tab and so on) may appear
                 // anywhere between PropValues, Properties, Nodes, Sequences and GameTrees.
                 ' ' | '\n' | '\t' => (),
+                chars::TREE_START => {
+                    // We have encountered a new new tree; this means the current Node is finished.
+                    return Ok((Node { properties }, index));
+                }
                 _ => {
                     let remaining_content = source.split_at(index - 1);
 
